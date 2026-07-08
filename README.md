@@ -68,9 +68,12 @@ python feishu_cli.py upload-media scratch/ref1.png
 ## 路线图
 
 - [x] **阶段一：Prompt → 飞书**（截图/文本识别抽取 + 写记录 + 附件上传）
-- [ ] **阶段二：OpenArt → 飞书**（用 OpenArt MCP 生成，一键把结果图/视频 + prompt + 参考图
-      回填多维表格；复用 CLI 的 `upload-media` 与附件能力，新增 `/openart2feishu` 命令）
+- [x] **阶段二：OpenArt → 飞书**（用 OpenArt MCP 生成，按需把结果图/视频 + prompt + 参考图
+      回填多维表格；`feishu_cli.py` 的 `--media` 已支持直接传 URL；命令 `/openart2feishu`）
 - [ ] 阶段三（可选）：解析 X / YouTube / Instagram 链接里的 prompt 与媒体
+
+> 附件可传 URL：`python feishu_cli.py add-record --data '{"标题":"x"}' --media 相关图片=https://.../out.png`
+> （容器内下载受网络白名单限制；若 OpenArt 结果域名未放行，加进环境 Allowed domains 即可。）
 
 ## 安全
 

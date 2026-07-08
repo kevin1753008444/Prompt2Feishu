@@ -16,7 +16,9 @@ import json
 import mimetypes
 import os
 import sys
+import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 try:
     import requests
@@ -109,10 +111,39 @@ class Feishu:
         path = f"/open-apis/bitable/v1/apps/{app_token}"
         return self._api("GET", path).get("data", {})
 
-    def upload_media(self, file_path: str, app_token: str, parent_type: str) -> str:
-        p = Path(file_path)
+    def _download_url(self, url: str) -> Path:
+        """把 http(s) URL 下载到临时文件，扩展名尽量按 Content-Type 推断。
+
+        注意：下载在容器内发起，受环境出口策略限制。若目标域名未放行会连不上，
+        需在环境网络策略里把该域名加入白名单（与 open.feishu.cn 同理）。
+        """
+        resp = self.session.get(url, stream=True, timeout=120)
+        if resp.status_code != 200:
+            raise SystemExit(f"下载 URL 失败（HTTP {resp.status_code}）: {url}")
+        # 先取 URL 里的文件名/扩展名，缺失再按 Content-Type 补
+        name = Path(urlparse(url).path).name or "download"
+        if "." not in name:
+            ext = mimetypes.guess_extension((resp.headers.get("Content-Type") or "").split(";")[0].strip())
+            if ext:
+                name += ext
+        tmp_dir = Path(tempfile.mkdtemp(prefix="p2f_"))
+        dest = tmp_dir / name
+        with dest.open("wb") as fh:
+            for chunk in resp.iter_content(chunk_size=1 << 16):
+                if chunk:
+                    fh.write(chunk)
+        return dest
+
+    def upload_media(self, file_path: str, app_token: str, parent_type: str = None) -> str:
+        # 支持本地路径或 http(s) URL（URL 先下载到临时文件）
+        if str(file_path).startswith(("http://", "https://")):
+            p = self._download_url(file_path)
+        else:
+            p = Path(file_path)
         if not p.exists():
             raise SystemExit(f"文件不存在: {file_path}")
+        if parent_type is None:
+            parent_type = _parent_type_for(p.name)
         size = p.stat().st_size
         path = "/open-apis/drive/v1/medias/upload_all"
         mime = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
@@ -155,7 +186,7 @@ def build_fields(client, app_token, logical_data: dict, media: dict, field_map: 
         spec = field_map[logical]
         if spec["type"] != "attachment":
             raise SystemExit(f"字段 '{logical}' 不是附件类型，无法用 --media 上传。")
-        token = client.upload_media(file_path, app_token, _parent_type_for(file_path))
+        token = client.upload_media(file_path, app_token)  # parent_type 自动判断
         out.setdefault(spec["column"], [])
         out[spec["column"]].append({"file_token": token})
     return out
@@ -207,9 +238,9 @@ def cmd_list_fields(args):
 def cmd_upload_media(args):
     client = Feishu()
     app_token = _require_env("FEISHU_APP_TOKEN")
-    parent_type = args.parent_type or _parent_type_for(args.path)
-    token = client.upload_media(args.path, app_token, parent_type)
-    print(json.dumps({"file_token": token, "parent_type": parent_type}, ensure_ascii=False))
+    # args.parent_type 为 None 时，upload_media 会在（下载后）按 MIME 自动判断
+    token = client.upload_media(args.path, app_token, args.parent_type)
+    print(json.dumps({"file_token": token}, ensure_ascii=False))
 
 
 def _parse_media_args(media_list):
@@ -266,8 +297,8 @@ def main():
     sub.add_parser("test", help="连通性自检：鉴权 + 读取目标表字段").set_defaults(func=cmd_test)
     sub.add_parser("list-fields", help="列出目标表所有字段及类型").set_defaults(func=cmd_list_fields)
 
-    p_up = sub.add_parser("upload-media", help="上传一个本地图片/视频，返回 file_token")
-    p_up.add_argument("path", help="本地文件路径")
+    p_up = sub.add_parser("upload-media", help="上传本地文件或 http(s) URL 的图片/视频，返回 file_token")
+    p_up.add_argument("path", help="本地文件路径，或 http(s) URL（会先下载再上传）")
     p_up.add_argument("--parent-type", dest="parent_type", default=None,
                       help="bitable_image（默认，图片）或 bitable_file（视频/其它）")
     p_up.set_defaults(func=cmd_upload_media)
@@ -276,7 +307,8 @@ def main():
     p_add.add_argument("--data", required=True,
                        help='逻辑字段 JSON，如 \'{"标题":"...","提示词-英文":"..."}\'')
     p_add.add_argument("--media", action="append", default=[],
-                       help="附件：字段=本地路径，可重复。如 --media 相关图片=a.png")
+                       help="附件：字段=本地路径或URL，可重复。"
+                            "如 --media 相关图片=a.png 或 --media 相关图片=https://.../out.png")
     p_add.add_argument("--dry-run", action="store_true",
                        help="不联网，仅打印映射后的字段结构（用于自检）")
     p_add.set_defaults(func=cmd_add_record)
