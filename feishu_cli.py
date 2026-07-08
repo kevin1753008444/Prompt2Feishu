@@ -163,6 +163,11 @@ class Feishu:
         data = self._api("POST", path, json={"fields": fields})
         return data.get("data", {}).get("record", {})
 
+    def update_record(self, app_token: str, table_id: str, record_id: str, fields: dict) -> dict:
+        path = f"/open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/records/{record_id}"
+        data = self._api("PUT", path, json={"fields": fields})
+        return data.get("data", {}).get("record", {})
+
 
 # 视频文件的附件父类型
 def _parent_type_for(path: str) -> str:
@@ -170,7 +175,7 @@ def _parent_type_for(path: str) -> str:
     return "bitable_file" if mime.startswith("video/") else "bitable_image"
 
 
-def build_fields(client, app_token, logical_data: dict, media: dict, field_map: dict) -> dict:
+def build_fields(client, app_token, logical_data: dict, media: list, field_map: dict) -> dict:
     """把逻辑字段名 + 值转换成飞书 create 记录所需的 {列名: 值} 结构。"""
     out = {}
     for logical, value in logical_data.items():
@@ -180,7 +185,7 @@ def build_fields(client, app_token, logical_data: dict, media: dict, field_map: 
         column, ftype = spec["column"], spec["type"]
         out[column] = _coerce(ftype, value)
 
-    for logical, file_path in media.items():
+    for logical, file_path in media:
         if logical not in field_map:
             raise SystemExit(f"附件字段 '{logical}' 不在 field_map.json 中。")
         spec = field_map[logical]
@@ -244,13 +249,16 @@ def cmd_upload_media(args):
 
 
 def _parse_media_args(media_list):
-    """把 ['相关图片=a.png', '相关视频=b.mp4'] 解析成 dict。"""
-    result = {}
+    """把 ['相关图片=a.png', '相关图片=b.png'] 解析成 [(字段, 路径), ...]（保序、可重复）。
+
+    用 list 而非 dict：同一字段多次出现代表往同一附件列放多张图，dict 会互相覆盖。
+    """
+    result = []
     for item in media_list or []:
         if "=" not in item:
             raise SystemExit(f"--media 参数格式应为 字段=路径，收到: {item}")
         key, _, path = item.partition("=")
-        result[key.strip()] = path.strip()
+        result.append((key.strip(), path.strip()))
     return result
 
 
@@ -273,7 +281,7 @@ def cmd_add_record(args):
         print(json.dumps({
             "dry_run": True,
             "fields": preview,
-            "pending_media_uploads": media,
+            "pending_media_uploads": [{"field": k, "path": v} for k, v in media],
         }, ensure_ascii=False, indent=2))
         return
 
@@ -285,6 +293,26 @@ def cmd_add_record(args):
     print(json.dumps({
         "ok": True,
         "record_id": record.get("record_id"),
+        "fields_written": list(fields.keys()),
+    }, ensure_ascii=False, indent=2))
+
+
+def cmd_update_record(args):
+    field_map = load_field_map()
+    try:
+        logical_data = json.loads(args.data) if args.data else {}
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"--data 不是合法 JSON: {e}")
+    media = _parse_media_args(args.media)
+
+    client = Feishu()
+    app_token = _require_env("FEISHU_APP_TOKEN")
+    table_id = _require_env("FEISHU_TABLE_ID")
+    fields = build_fields(client, app_token, logical_data, media, field_map)
+    record = client.update_record(app_token, table_id, args.record_id, fields)
+    print(json.dumps({
+        "ok": True,
+        "record_id": record.get("record_id") or args.record_id,
         "fields_written": list(fields.keys()),
     }, ensure_ascii=False, indent=2))
 
@@ -312,6 +340,15 @@ def main():
     p_add.add_argument("--dry-run", action="store_true",
                        help="不联网，仅打印映射后的字段结构（用于自检）")
     p_add.set_defaults(func=cmd_add_record)
+
+    p_upd = sub.add_parser("update-record",
+                           help="更新已有记录（附件列会被新列表整体替换，需传齐所有想保留的图）")
+    p_upd.add_argument("--record-id", required=True, help="要更新的 record_id")
+    p_upd.add_argument("--data", default="{}",
+                       help='逻辑字段 JSON（只改这些字段）；不改字段可传 {}')
+    p_upd.add_argument("--media", action="append", default=[],
+                       help="附件：字段=本地路径或URL，可重复。整列会被替换为这些图。")
+    p_upd.set_defaults(func=cmd_update_record)
 
     args = parser.parse_args()
     args.func(args)
