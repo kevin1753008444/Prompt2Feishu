@@ -28,6 +28,9 @@ docs/SETUP_FEISHU.md             # 飞书接入分步指南（创建应用、权
 
 ## 快速开始
 
+> 首次配置（网络白名单 / 环境变量 / GitHub App / OpenArt 连接器 / 减少弹窗）见
+> **[docs/ONBOARDING.md](docs/ONBOARDING.md)**——分享给他人也照此走一遍。
+
 1. 安装依赖并配置飞书凭据（详见 [docs/SETUP_FEISHU.md](docs/SETUP_FEISHU.md)）：
    ```bash
    pip install -r requirements.txt

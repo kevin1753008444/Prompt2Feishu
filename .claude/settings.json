@@ -1,0 +1,28 @@
+{
+  "//": "预先放行本插件常用的工具，减少每次的 Allow 弹窗。分享给他人后同样生效。",
+  "permissions": {
+    "allow": [
+      "mcp__OpenArt__openart_model_list",
+      "mcp__OpenArt__openart_model_form_get",
+      "mcp__OpenArt__openart_model_cost",
+      "mcp__OpenArt__openart_generate_image",
+      "mcp__OpenArt__openart_generate_video",
+      "mcp__OpenArt__openart_creation_get",
+      "mcp__OpenArt__openart_creation_show",
+      "mcp__OpenArt__openart_creation_wait",
+      "mcp__OpenArt__openart_creation_list",
+      "mcp__OpenArt__openart_upload_list",
+      "mcp__OpenArt__openart_upload_metadata_get",
+      "mcp__OpenArt__openart_project_list",
+      "mcp__OpenArt__openart_account_get",
+      "Bash(python3 feishu_cli.py:*)",
+      "Bash(python feishu_cli.py:*)",
+      "Bash(python3 tools/extract_pasted_images.py:*)",
+      "Bash(python3 tools/publish_refs.py:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

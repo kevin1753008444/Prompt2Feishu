@@ -19,13 +19,16 @@ description: 用 OpenArt 生成图片/视频，并在用户要求时把生成结
    `openart_creation_wait(historyId)` 直到完成（视频可能要多次 wait）。
 5. 从完成结果里取出**结果媒体的 URL**（图片/视频直链），记下来备用。
 
-> 参考图来源（重要，避免用上传卡片）：用户**直接粘贴在对话里的图片**不会落盘，但会以
-> base64 存在会话 transcript 里。用 `python tools/extract_pasted_images.py --last N`
-> 把它们**按粘贴顺序**取成文件（`scratch/paste/01.*、02.*…`，顺序对参考图很重要）。
-> 然后需要一个**公网 URL** 才能喂给 OpenArt（`visualReferences[].url` 接受任意公网图片
-> URL）：把这些图 `cp` 到 `assets/refs/` 并推到当前工作分支，用 **commit SHA** 拼
-> `https://raw.githubusercontent.com/<owner>/<repo>/<SHA>/assets/refs/NN.ext`（raw 公网可读、
-> 已在白名单）。若用户直接给了图片 URL，跳过上述步骤直接用。
+> 参考图来源（重要，免上传卡片，一步到位）：用户**直接粘贴在对话里的图片**不会落盘，但会
+> 以 base64 存在会话 transcript 里。直接跑：
+> ```bash
+> python tools/publish_refs.py --last N      # N=本次参考图数量
+> ```
+> 它会：按**粘贴顺序**提取 → 存到 `assets/refs/01.*、02.*…` → 提交并推送 → 打印每张的
+> 公网 `raw` URL（`{"refs":[{"index":1,"url":...}, ...]}`）。**顺序在脚本层面已确定**
+> （编号=粘贴顺序），无需再用视觉逐张核对。把这些 URL **按 index 顺序**填进 OpenArt 的
+> `visualReferences[].url` 即可（OpenArt 接受任意公网图片 URL）。
+> 若用户本来就给了图片 URL，跳过此步直接用。
 
 ## B. 回填阶段（在用户明确要求时才写）
 
