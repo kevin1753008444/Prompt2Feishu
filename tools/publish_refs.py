@@ -106,7 +106,8 @@ def publish_github(files):
 
 def main():
     ap = argparse.ArgumentParser(description="把对话粘贴的参考图发布成公网 URL")
-    ap.add_argument("--host", choices=["auto", "catbox", "github"], default="auto")
+    # 默认 github：已验证在云沙盒可用；catbox 会封数据中心 IP，仅在支持的环境作备选
+    ap.add_argument("--host", choices=["github", "catbox", "auto"], default="github")
     ap.add_argument("--last", type=int, default=None, help="取全局最近 N 张（保序）")
     ap.add_argument("--turn", type=int, default=-1, help="取第几个含图轮次（默认最近）")
     args = ap.parse_args()

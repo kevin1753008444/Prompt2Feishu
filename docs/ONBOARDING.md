@@ -10,9 +10,8 @@
 ```
 open.feishu.cn        # 飞书 API（写记录 + 上传附件）；海外 Lark 用 open.larksuite.com
 cdn.openart.ai        # OpenArt 生成结果所在，回填飞书时要下载
-catbox.moe            # 默认参考图图床（免注册）；若只用 GitHub 兜底则可不加
-files.catbox.moe      # catbox 直链域名
 ```
+`raw.githubusercontent.com`（喂参考图给 OpenArt 用）已在默认列表，无需另加。
 并勾选 **“Also include default list of common package managers”**（保留默认，含 GitHub、
 `raw.githubusercontent.com`、pip 等）。`raw.githubusercontent.com` 用于把粘贴的参考图发布成
 公网 URL 喂给 OpenArt，已在默认列表里，无需另加。
@@ -48,11 +47,15 @@ claude.ai 里授权 OpenArt 账号。
   提取并发布成公网 URL 喂给 OpenArt。顺序即你粘贴的先后。
 - **生成与写表分两步**：生成后先给你看结果；只有你明确说"存进多维表格"才写入。
 
-## 参考图图床（默认外部免注册，GitHub 兜底）
-参考图需要一个**临时公网 URL**（够 OpenArt 生成 + 飞书回填下载即可，之后可失效）。默认用
-免注册图床 **catbox.moe**（无账号、无损存储），所以白名单需加一行 `catbox.moe`（见上）。
-没有该域名或它不可用时，自动回退到 GitHub raw（需已装 GitHub App）。切换见
-`tools/publish_refs.py --host catbox|github`。
+## 参考图图床（默认 GitHub raw）
+"喂参考图给 OpenArt 生成"这一步需要一个**公网 URL**（OpenArt 只接受 URL 或上传卡片）。
+默认用 **GitHub raw**（`tools/publish_refs.py --host github`）：已验证在云沙盒稳定可用、
+CDN 快、零额外配置（`raw.githubusercontent.com` 在默认白名单）。用 Claude Code 云端本就
+连了 GitHub，所以这对分享对象也通用。
+- **注意**：往飞书写参考图**不需要图床**——本地文件直接传给飞书即可（无损、不经 GitHub）。
+  图床只在"生成"那一步用到。
+- 备选 `--host catbox`（免注册第三方）在多数云沙盒里会被 catbox 按 IP 封禁，通常不可用；
+  如需严格非 GitHub 方案，可换 imgbb / 自有对象存储（可另行加 `--host` 适配）。
 
 ## 自检
 ```
