@@ -1,0 +1,11 @@
+{
+  "标题":       { "column": "标题1",        "type": "text" },
+  "分类":       { "column": "分类",          "type": "single_select" },
+  "提示词-英文": { "column": "提示词-英文",   "type": "text" },
+  "提示词-中文": { "column": "提示词-中文",   "type": "text" },
+  "评分":       { "column": "评分",          "type": "number" },
+  "备注":       { "column": "备注",          "type": "text" },
+  "相关图片":    { "column": "相关图片",       "type": "attachment" },
+  "相关视频":    { "column": "相关视频",       "type": "attachment" },
+  "链接":       { "column": "链接",          "type": "url" }
+}

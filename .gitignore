@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+# 抽取过程中临时保存的参考图/结果媒体
+scratch/
+*.tmp

@@ -1,0 +1,10 @@
+{
+  "//": "OpenArt 用现成 MCP；飞书用本仓库的 feishu_cli.py（官方飞书 MCP 不支持媒体上传，无法写附件列）。",
+  "mcpServers": {
+    "OpenArt": {
+      "//": "OpenArt 官方 MCP。若在 Claude Code / Codex 本地接入，按 OpenArt 文档填入其命令与鉴权。",
+      "type": "http",
+      "url": "https://mcp.openart.ai/mcp"
+    }
+  }
+}
