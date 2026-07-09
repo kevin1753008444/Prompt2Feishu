@@ -2,6 +2,7 @@
   "//": "预先放行本插件常用的工具，减少每次的 Allow 弹窗。分享给他人后同样生效。",
   "permissions": {
     "allow": [
+      "mcp__OpenArt",
       "mcp__OpenArt__openart_model_list",
       "mcp__OpenArt__openart_model_form_get",
       "mcp__OpenArt__openart_model_cost",

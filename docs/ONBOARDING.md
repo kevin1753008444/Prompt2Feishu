@@ -10,8 +10,9 @@
 ```
 open.feishu.cn        # 飞书 API（写记录 + 上传附件）；海外 Lark 用 open.larksuite.com
 cdn.openart.ai        # OpenArt 生成结果所在，回填飞书时要下载
+tmpfiles.org          # 参考图临时图床（1 小时自动过期，不永久留存）
 ```
-`raw.githubusercontent.com`（喂参考图给 OpenArt 用）已在默认列表，无需另加。
+`raw.githubusercontent.com`（github 兜底图床用）已在默认列表，无需另加。
 并勾选 **“Also include default list of common package managers”**（保留默认，含 GitHub、
 `raw.githubusercontent.com`、pip 等）。`raw.githubusercontent.com` 用于把粘贴的参考图发布成
 公网 URL 喂给 OpenArt，已在默认列表里，无需另加。
@@ -47,15 +48,21 @@ claude.ai 里授权 OpenArt 账号。
   提取并发布成公网 URL 喂给 OpenArt。顺序即你粘贴的先后。
 - **生成与写表分两步**：生成后先给你看结果；只有你明确说"存进多维表格"才写入。
 
-## 参考图图床（默认 GitHub raw）
+## 参考图图床（默认 tmpfiles.org，临时自动过期）
 "喂参考图给 OpenArt 生成"这一步需要一个**公网 URL**（OpenArt 只接受 URL 或上传卡片）。
-默认用 **GitHub raw**（`tools/publish_refs.py --host github`）：已验证在云沙盒稳定可用、
-CDN 快、零额外配置（`raw.githubusercontent.com` 在默认白名单）。用 Claude Code 云端本就
-连了 GitHub，所以这对分享对象也通用。
-- **注意**：往飞书写参考图**不需要图床**——本地文件直接传给飞书即可（无损、不经 GitHub）。
-  图床只在"生成"那一步用到。
-- 备选 `--host catbox`（免注册第三方）在多数云沙盒里会被 catbox 按 IP 封禁，通常不可用；
-  如需严格非 GitHub 方案，可换 imgbb / 自有对象存储（可另行加 `--host` 适配）。
+默认用 **tmpfiles.org**（`tools/publish_refs.py`，默认 `--host tmpfiles`）：**1 小时后自动删除**，
+不在任何地方永久留存——正好满足"临时"。需在白名单放行 `tmpfiles.org`。
+- URL 只需短暂存活：够 OpenArt 生成 + 飞书回填下载即可，之后过期不影响已写入飞书的附件。
+- **往飞书写参考图不需要图床**——本地文件直接传给飞书即可（无损）。图床只在"生成"那一步用到。
+- 兜底 `--host github`：稳定但会**永久留在 git 历史**，不建议常用；`--host catbox` 多数沙盒被 IP 封。
+
+## 各类文件"存在哪、留多久"
+| 东西 | 位置 | 留存 |
+|---|---|---|
+| 你粘贴的参考图（喂 OpenArt） | tmpfiles.org 临时图床 | 1 小时自动删 |
+| OpenArt 生成结果（下载到本地预览） | 沙盒 `scratch/`（gitignore） | 随会话容器销毁 |
+| 写进多维表格的图/视频 | 飞书云文档 | 长期（这是你要的库） |
+> 结论：除了你主动写进飞书的，其它都是临时的，不会永久堆在 GitHub。
 
 ## 自检
 ```

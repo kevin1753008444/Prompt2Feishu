@@ -5,9 +5,10 @@
   1. 从会话 transcript 提取用户最近粘贴的图片（保序）——复用 extract_pasted_images。
   2. 存到 scratch/paste/01.ext、02.ext…（编号即粘贴顺序）。
   3. 上传到图床，得到公网 URL：
-     - host=catbox（默认）：免注册匿名图床 catbox.moe，无损、直链、无账号。
-     - host=github：提交到当前工作分支 assets/refs/，用 commit SHA 拼 raw URL（需装 GitHub App）。
-     - host=auto（推荐）：先试 catbox，失败自动回退 github。
+     - host=tmpfiles（默认）：tmpfiles.org，1 小时后自动删除（临时、不永久留存）。需白名单放行 tmpfiles.org。
+     - host=github：提交到当前工作分支 assets/refs/，用 commit SHA 拼 raw URL（会永久留在 git 历史）。
+     - host=catbox：免注册匿名图床（多数云沙盒会被其按 IP 封，通常不可用）。
+     - host=auto：依次 tmpfiles -> catbox -> github 兜底。
   4. 打印 JSON：{"host":..,"refs":[{"index":1,"url":..,"media_type":..}, ...]}，
      顺序即粘贴顺序，直接作为 OpenArt visualReferences[].url 使用。
 
@@ -65,6 +66,23 @@ def extract(last, turn):
     return files
 
 
+def upload_tmpfiles(path: Path) -> str:
+    """上传到 tmpfiles.org，返回直链。文件 1 小时后自动删除（临时、不永久留存）。"""
+    with path.open("rb") as fh:
+        resp = requests.post(
+            "https://tmpfiles.org/api/v1/upload",
+            files={"file": (path.name, fh)},
+            timeout=120,
+        )
+    resp.raise_for_status()
+    data = resp.json()
+    page_url = (data.get("data") or {}).get("url", "")
+    if not page_url.startswith("http"):
+        raise RuntimeError(f"tmpfiles 返回异常: {str(data)[:200]}")
+    # 页面 URL 形如 https://tmpfiles.org/12345/x.png；直链需插入 /dl/
+    return page_url.replace("tmpfiles.org/", "tmpfiles.org/dl/", 1)
+
+
 def upload_catbox(path: Path) -> str:
     with path.open("rb") as fh:
         resp = requests.post(
@@ -106,27 +124,39 @@ def publish_github(files):
 
 def main():
     ap = argparse.ArgumentParser(description="把对话粘贴的参考图发布成公网 URL")
-    # 默认 github：已验证在云沙盒可用；catbox 会封数据中心 IP，仅在支持的环境作备选
-    ap.add_argument("--host", choices=["github", "catbox", "auto"], default="github")
+    # 默认 tmpfiles：1 小时自动过期（临时、不永久留存）。github 为兜底（会永久留在 git 历史）。
+    ap.add_argument("--host", choices=["tmpfiles", "github", "catbox", "auto"], default="tmpfiles")
     ap.add_argument("--last", type=int, default=None, help="取全局最近 N 张（保序）")
     ap.add_argument("--turn", type=int, default=-1, help="取第几个含图轮次（默认最近）")
     args = ap.parse_args()
 
     files = extract(args.last, args.turn)
 
+    # 上传顺序偏好：临时优先。auto = tmpfiles -> catbox -> github 依次兜底。
+    order = {
+        "tmpfiles": [("tmpfiles", upload_tmpfiles)],
+        "catbox": [("catbox", upload_catbox)],
+        "github": [("github", None)],
+        "auto": [("tmpfiles", upload_tmpfiles), ("catbox", upload_catbox), ("github", None)],
+    }[args.host]
+
     urls = None
     used = None
-    if args.host in ("auto", "catbox"):
+    last_err = None
+    for name, fn in order:
         try:
-            urls = [upload_catbox(dest) for dest, _ in files]
-            used = "catbox"
+            if name == "github":
+                urls = publish_github(files)
+            else:
+                urls = [fn(dest) for dest, _ in files]
+            used = name
+            break
         except Exception as e:  # noqa: BLE001
-            if args.host == "catbox":
-                raise SystemExit(f"catbox 上传失败：{e}\n（需在环境白名单放行 catbox.moe）")
-            sys.stderr.write(f"catbox 失败，回退 github：{e}\n")
+            last_err = e
+            sys.stderr.write(f"[{name}] 失败：{e}\n")
     if urls is None:
-        urls = publish_github(files)
-        used = "github"
+        raise SystemExit(f"所有图床都失败，最后错误：{last_err}\n"
+                         f"（tmpfiles 需白名单放行 tmpfiles.org；或用 --host github）")
 
     refs = [{"index": i + 1, "media_type": files[i][1], "url": urls[i]}
             for i in range(len(files))]
