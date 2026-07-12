@@ -134,6 +134,9 @@ class Feishu:
                     fh.write(chunk)
         return dest
 
+    # upload_all 单接口上限 20MB；超过用分片上传
+    UPLOAD_ALL_LIMIT = 20 * 1024 * 1024
+
     def upload_media(self, file_path: str, app_token: str, parent_type: str = None) -> str:
         # 支持本地路径或 http(s) URL（URL 先下载到临时文件）
         if str(file_path).startswith(("http://", "https://")):
@@ -145,7 +148,8 @@ class Feishu:
         if parent_type is None:
             parent_type = _parent_type_for(p.name)
         size = p.stat().st_size
-        path = "/open-apis/drive/v1/medias/upload_all"
+        if size > self.UPLOAD_ALL_LIMIT:
+            return self._upload_chunked(p, app_token, parent_type, size)
         mime = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
         with p.open("rb") as fh:
             files = {
@@ -155,7 +159,34 @@ class Feishu:
                 "size": (None, str(size)),
                 "file": (p.name, fh, mime),
             }
-            data = self._api("POST", path, files=files)
+            data = self._api("POST", "/open-apis/drive/v1/medias/upload_all", files=files)
+        return data.get("data", {}).get("file_token", "")
+
+    def _upload_chunked(self, p: Path, app_token: str, parent_type: str, size: int) -> str:
+        """飞书分片上传：prepare -> part(逐块) -> finish。用于 >20MB 的文件（如视频）。"""
+        prep = self._api("POST", "/open-apis/drive/v1/medias/upload_prepare", json={
+            "file_name": p.name,
+            "parent_type": parent_type,
+            "parent_node": app_token,
+            "size": size,
+        }).get("data", {})
+        upload_id = prep["upload_id"]
+        block_size = prep["block_size"]
+        block_num = prep["block_num"]
+        with p.open("rb") as fh:
+            for seq in range(block_num):
+                block = fh.read(block_size)
+                files = {
+                    "upload_id": (None, upload_id),
+                    "seq": (None, str(seq)),
+                    "size": (None, str(len(block))),
+                    "file": (p.name, block, "application/octet-stream"),
+                }
+                self._api("POST", "/open-apis/drive/v1/medias/upload_part", files=files)
+        data = self._api("POST", "/open-apis/drive/v1/medias/upload_finish", json={
+            "upload_id": upload_id,
+            "block_num": block_num,
+        })
         return data.get("data", {}).get("file_token", "")
 
     def create_record(self, app_token: str, table_id: str, fields: dict) -> dict:
