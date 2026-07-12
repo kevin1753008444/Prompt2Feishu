@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+node_modules/
 .DS_Store
 # 抽取过程中临时保存的参考图/结果媒体
 scratch/
