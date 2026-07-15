@@ -23,6 +23,7 @@
 import argparse
 import base64
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -67,11 +68,19 @@ def extract(last, turn):
 
 
 def upload_tmpfiles(path: Path) -> str:
-    """上传到 tmpfiles.org，返回直链。文件 1 小时后自动删除（临时、不永久留存）。"""
+    """上传到 tmpfiles.org，返回真正的直链（image/... 而非查看页 HTML）。
+
+    文件 1 小时后自动删除（临时、不永久留存）。tmpfiles 的上传接口对文件名较挑剔
+    （某些字符会被拒），所以固定用简单文件名上传。上传接口只返回查看页 URL
+    （形如 tmpfiles.org/{id}/{name}），真正的直链需要多一段 token
+    （tmpfiles.org/dl/{token}/{id}/{name}），从查看页 HTML 里的 #img_preview
+    （或下载按钮）解析出来。
+    """
+    ext = path.suffix or ".bin"
     with path.open("rb") as fh:
         resp = requests.post(
             "https://tmpfiles.org/api/v1/upload",
-            files={"file": (path.name, fh)},
+            files={"file": (f"upload{ext}", fh)},
             timeout=120,
         )
     resp.raise_for_status()
@@ -79,8 +88,12 @@ def upload_tmpfiles(path: Path) -> str:
     page_url = (data.get("data") or {}).get("url", "")
     if not page_url.startswith("http"):
         raise RuntimeError(f"tmpfiles 返回异常: {str(data)[:200]}")
-    # 页面 URL 形如 https://tmpfiles.org/12345/x.png；直链需插入 /dl/
-    return page_url.replace("tmpfiles.org/", "tmpfiles.org/dl/", 1)
+    page = requests.get(page_url, timeout=30)
+    page.raise_for_status()
+    m = re.search(r'(https?://tmpfiles\.org/dl/[^"\'<> ]+)', page.text)
+    if not m:
+        raise RuntimeError(f"tmpfiles 查看页未找到直链: {page_url}")
+    return m.group(1)
 
 
 def upload_catbox(path: Path) -> str:
